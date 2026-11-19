@@ -1,0 +1,1083 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Default-Deny Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Core Primitives
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isAdminByEmail() {
+      return isVerified() && request.auth.token.email == 'os19821991@gmail.com';
+    }
+
+    function userExists() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function currentUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isAdmin() {
+      return isAdminByEmail()
+        || (isVerified() && exists(/databases/$(database)/documents/admins/$(request.auth.uid)))
+        || (isVerified() && userExists() && currentUserRole() == 'admin');
+    }
+
+    function hasCurrentRolePermission(permKey) {
+      return isVerified()
+        && userExists()
+        && exists(/databases/$(database)/documents/rolePermissions/$(currentUserRole()))
+        && get(/databases/$(database)/documents/rolePermissions/$(currentUserRole())).data[permKey] == true;
+    }
+
+    function canDeductBehavior() {
+      return isAdmin()
+        || (
+          isVerified()
+          && userExists()
+          && currentUserRole() in ['admin', 'teacher', 'supervisor']
+          && hasCurrentRolePermission('deductBehavior')
+        );
+    }
+
+    function canManageCalendar() {
+      return isAdmin()
+        || (
+          isVerified()
+          && userExists()
+          && (
+            currentUserRole() in ['admin', 'teacher']
+            || hasCurrentRolePermission('manageAnnouncements')
+            || hasCurrentRolePermission('publishGrades')
+          )
+        );
+    }
+
+    function canManagePolls() {
+      return canManageCalendar();
+    }
+
+    // Entity Validators (Sync with firebase-blueprint.json)
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['uid', 'displayName', 'email', 'role', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'displayName', 'email', 'role', 'createdAt', 'updatedAt'])
+        && data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 120
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 160
+        && data.role in ['admin', 'teacher', 'supervisor', 'parent']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidRolePermissions(data) {
+      return data.keys().hasAll([
+          'role', 'label',
+          'viewOverview', 'viewAttendance', 'markAttendance',
+          'viewGrades', 'publishGrades', 'deductBehavior',
+          'viewResources', 'publishResources',
+          'messageStaff', 'messageParents',
+          'viewAnnouncements', 'manageAnnouncements',
+          'viewBilling', 'manageBilling',
+          'viewTeachersEval', 'managePermissions',
+          'scope', 'updatedBy', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'role', 'label',
+          'viewOverview', 'viewAttendance', 'markAttendance',
+          'viewGrades', 'publishGrades', 'deductBehavior',
+          'viewResources', 'publishResources',
+          'messageStaff', 'messageParents',
+          'viewAnnouncements', 'manageAnnouncements',
+          'viewBilling', 'manageBilling',
+          'viewTeachersEval', 'managePermissions',
+          'scope', 'updatedBy', 'updatedAt'
+        ])
+        && data.role in ['parent', 'teacher', 'admin', 'supervisor']
+        && data.label is string && data.label.size() >= 2 && data.label.size() <= 80
+        && data.viewOverview is bool
+        && data.viewAttendance is bool
+        && data.markAttendance is bool
+        && data.viewGrades is bool
+        && data.publishGrades is bool
+        && data.deductBehavior is bool
+        && data.viewResources is bool
+        && data.publishResources is bool
+        && data.messageStaff is bool
+        && data.messageParents is bool
+        && data.viewAnnouncements is bool
+        && data.manageAnnouncements is bool
+        && data.viewBilling is bool
+        && data.manageBilling is bool
+        && data.viewTeachersEval is bool
+        && data.managePermissions is bool
+        && data.scope == 'school'
+        && data.updatedBy is string && data.updatedBy.size() >= 2 && data.updatedBy.size() <= 120
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidStudent(data) {
+      return data.keys().hasAll(['fullName', 'studentCode', 'grade', 'section', 'parentUid', 'parentName', 'parentPhone', 'gpa', 'attendanceRate', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['fullName', 'studentCode', 'grade', 'section', 'parentUid', 'parentName', 'parentPhone', 'gpa', 'attendanceRate', 'behaviorScore', 'createdAt', 'updatedAt'])
+        && data.fullName is string && data.fullName.size() >= 2 && data.fullName.size() <= 120
+        && data.studentCode is string && data.studentCode.size() >= 2 && data.studentCode.size() <= 32 && data.studentCode.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.grade is string && data.grade.size() >= 1 && data.grade.size() <= 60
+        && data.section is string && data.section.size() >= 1 && data.section.size() <= 20
+        && data.parentUid is string && data.parentUid.size() >= 1 && data.parentUid.size() <= 128
+        && data.parentName is string && data.parentName.size() >= 2 && data.parentName.size() <= 120
+        && data.parentPhone is string && data.parentPhone.size() >= 6 && data.parentPhone.size() <= 24
+        && data.gpa is number && data.gpa >= 0 && data.gpa <= 100
+        && data.attendanceRate is number && data.attendanceRate >= 0 && data.attendanceRate <= 100
+        && (!('behaviorScore' in data) || (data.behaviorScore is number && data.behaviorScore >= 0 && data.behaviorScore <= 100))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidBehaviorDeduction(data) {
+      return data.keys().hasAll(['studentId', 'studentName', 'grade', 'parentUid', 'pointsDeducted', 'previousScore', 'newScore', 'reason', 'deductedByName', 'deductedByRole', 'createdAt'])
+        && data.keys().hasOnly(['studentId', 'studentName', 'grade', 'parentUid', 'pointsDeducted', 'previousScore', 'newScore', 'reason', 'deductedByName', 'deductedByRole', 'createdAt'])
+        && isValidId(data.studentId)
+        && data.studentName is string && data.studentName.size() >= 2 && data.studentName.size() <= 120
+        && data.grade is string && data.grade.size() >= 1 && data.grade.size() <= 60
+        && data.parentUid is string && data.parentUid.size() >= 1 && data.parentUid.size() <= 128
+        && data.pointsDeducted is number && data.pointsDeducted >= 1 && data.pointsDeducted <= 100
+        && data.previousScore is number && data.previousScore >= 1 && data.previousScore <= 100
+        && data.newScore is number && data.newScore >= 0 && data.newScore < data.previousScore && data.newScore == data.previousScore - data.pointsDeducted
+        && data.reason is string && data.reason.size() >= 2 && data.reason.size() <= 300
+        && data.deductedByName is string && data.deductedByName.size() >= 2 && data.deductedByName.size() <= 120
+        && data.deductedByRole in ['teacher', 'admin', 'supervisor']
+        && data.createdAt is timestamp;
+    }
+
+    function isValidAttendance(data) {
+      return data.keys().hasAll(['studentId', 'studentName', 'grade', 'parentUid', 'date', 'status', 'parentNotified', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['studentId', 'studentName', 'grade', 'parentUid', 'date', 'status', 'checkInTime', 'parentNotified', 'notes', 'qrSessionId', 'createdAt', 'updatedAt'])
+        && isValidId(data.studentId)
+        && data.studentName is string && data.studentName.size() >= 2 && data.studentName.size() <= 120
+        && data.grade is string && data.grade.size() >= 1 && data.grade.size() <= 60
+        && data.parentUid is string && data.parentUid.size() >= 1 && data.parentUid.size() <= 128
+        && data.date is string && data.date.size() == 10 && data.date.matches('^\\d{4}-\\d{2}-\\d{2}$')
+        && data.status in ['present', 'absent', 'late', 'excused']
+        && (!('checkInTime' in data) || (data.checkInTime is string && data.checkInTime.size() <= 20))
+        && data.parentNotified is bool
+        && (!('notes' in data) || (data.notes is string && data.notes.size() <= 300))
+        && (!('qrSessionId' in data) || isValidId(data.qrSessionId))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidQrAttendanceSession(data) {
+      return data.keys().hasAll(['grade', 'section', 'date', 'token', 'rotationSeconds', 'expiresAtMs', 'isActive', 'scanCount', 'createdByUid', 'createdByName', 'scope', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['grade', 'section', 'date', 'token', 'rotationSeconds', 'expiresAtMs', 'isActive', 'scanCount', 'createdByUid', 'createdByName', 'scope', 'createdAt', 'updatedAt'])
+        && data.grade is string && data.grade.size() >= 1 && data.grade.size() <= 60
+        && data.section is string && data.section.size() >= 1 && data.section.size() <= 20
+        && data.date is string && data.date.size() == 10 && data.date.matches('^\\d{4}-\\d{2}-\\d{2}$')
+        && data.token is string && data.token.size() >= 6 && data.token.size() <= 64 && data.token.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.rotationSeconds is number && data.rotationSeconds >= 15 && data.rotationSeconds <= 300
+        && data.expiresAtMs is number && data.expiresAtMs > 0
+        && data.isActive is bool
+        && data.scanCount is number && data.scanCount >= 0
+        && data.createdByUid is string && data.createdByUid.size() >= 1 && data.createdByUid.size() <= 128
+        && data.createdByName is string && data.createdByName.size() >= 2 && data.createdByName.size() <= 120
+        && data.scope == 'school'
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidQrStudentCheckIn(data) {
+      return isVerified()
+        && data.parentUid == request.auth.uid
+        && data.status == 'present'
+        && ('qrSessionId' in data)
+        && isValidId(data.qrSessionId)
+        && exists(/databases/$(database)/documents/students/$(data.studentId))
+        && get(/databases/$(database)/documents/students/$(data.studentId)).data.parentUid == request.auth.uid
+        && exists(/databases/$(database)/documents/qrAttendanceSessions/$(data.qrSessionId))
+        && get(/databases/$(database)/documents/qrAttendanceSessions/$(data.qrSessionId)).data.isActive == true
+        && get(/databases/$(database)/documents/qrAttendanceSessions/$(data.qrSessionId)).data.date == data.date
+        && get(/databases/$(database)/documents/qrAttendanceSessions/$(data.qrSessionId)).data.grade == data.grade;
+    }
+
+    function isValidPeriodAttendance(data) {
+      return data.keys().hasAll(['studentId', 'studentName', 'grade', 'section', 'parentUid', 'date', 'periodNumber', 'periodLabel', 'subject', 'status', 'categoryLabel', 'recordedBy', 'parentNotified', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['studentId', 'studentName', 'grade', 'section', 'parentUid', 'date', 'periodNumber', 'periodLabel', 'subject', 'status', 'categoryLabel', 'recordedBy', 'parentNotified', 'createdAt', 'updatedAt'])
+        && isValidId(data.studentId)
+        && data.studentName is string && data.studentName.size() >= 2 && data.studentName.size() <= 120
+        && data.grade is string && data.grade.size() >= 1 && data.grade.size() <= 60
+        && data.section is string && data.section.size() >= 1 && data.section.size() <= 20
+        && data.parentUid is string && data.parentUid.size() >= 1 && data.parentUid.size() <= 128
+        && data.date is string && data.date.size() == 10 && data.date.matches('^\\d{4}-\\d{2}-\\d{2}$')
+        && data.periodNumber is number && data.periodNumber >= 1 && data.periodNumber <= 8
+        && data.periodLabel is string && data.periodLabel.size() >= 2 && data.periodLabel.size() <= 40
+        && data.subject is string && data.subject.size() >= 1 && data.subject.size() <= 80
+        && data.status in ['present', 'absent', 'late', 'excused']
+        && data.categoryLabel is string && data.categoryLabel.size() >= 1 && data.categoryLabel.size() <= 40
+        && data.recordedBy is string && data.recordedBy.size() >= 2 && data.recordedBy.size() <= 120
+        && data.parentNotified is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidCalendarEvent(data) {
+      return data.keys().hasAll(['title', 'eventType', 'eventDate', 'targetGrade', 'createdByName', 'createdByRole', 'scope', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['title', 'eventType', 'eventDate', 'startTime', 'targetGrade', 'location', 'notes', 'createdByName', 'createdByRole', 'scope', 'createdAt', 'updatedAt'])
+        && data.title is string && data.title.size() >= 2 && data.title.size() <= 160
+        && data.eventType in ['exam', 'trip', 'meeting']
+        && data.eventDate is string && data.eventDate.size() == 10 && data.eventDate.matches('^\\d{4}-\\d{2}-\\d{2}$')
+        && (!('startTime' in data) || (data.startTime is string && data.startTime.size() <= 20))
+        && data.targetGrade is string && data.targetGrade.size() >= 1 && data.targetGrade.size() <= 60
+        && (!('location' in data) || (data.location is string && data.location.size() <= 120))
+        && (!('notes' in data) || (data.notes is string && data.notes.size() <= 500))
+        && data.createdByName is string && data.createdByName.size() >= 2 && data.createdByName.size() <= 120
+        && data.createdByRole in ['admin', 'teacher']
+        && data.scope == 'school'
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidGrade(data) {
+      return data.keys().hasAll(['studentId', 'studentName', 'grade', 'parentUid', 'subject', 'term', 'midtermScore', 'courseworkScore', 'finalScore', 'totalScore', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['studentId', 'studentName', 'grade', 'parentUid', 'subject', 'term', 'midtermScore', 'courseworkScore', 'finalScore', 'totalScore', 'teacherNote', 'createdAt', 'updatedAt'])
+        && isValidId(data.studentId)
+        && data.studentName is string && data.studentName.size() >= 2 && data.studentName.size() <= 120
+        && data.grade is string && data.grade.size() >= 1 && data.grade.size() <= 60
+        && data.parentUid is string && data.parentUid.size() >= 1 && data.parentUid.size() <= 128
+        && data.subject is string && data.subject.size() >= 1 && data.subject.size() <= 80
+        && data.term is string && data.term.size() >= 1 && data.term.size() <= 60
+        && data.midtermScore is number && data.midtermScore >= 0 && data.midtermScore <= 30
+        && data.courseworkScore is number && data.courseworkScore >= 0 && data.courseworkScore <= 30
+        && data.finalScore is number && data.finalScore >= 0 && data.finalScore <= 40
+        && data.totalScore is number && data.totalScore >= 0 && data.totalScore <= 100
+        && (!('teacherNote' in data) || (data.teacherNote is string && data.teacherNote.size() <= 300))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidTeacherEvaluation(data) {
+      return data.keys().hasAll(['teacherName', 'subject', 'department', 'lessonsDelivered', 'homeworkPublished', 'avgResponseMinutes', 'studentMasteryPct', 'evaluationScore', 'periodLabel', 'scope', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['teacherName', 'subject', 'department', 'lessonsDelivered', 'homeworkPublished', 'avgResponseMinutes', 'studentMasteryPct', 'evaluationScore', 'periodLabel', 'evaluationSummary', 'scope', 'createdAt', 'updatedAt'])
+        && data.teacherName is string && data.teacherName.size() >= 2 && data.teacherName.size() <= 120
+        && data.subject is string && data.subject.size() >= 1 && data.subject.size() <= 80
+        && data.department is string && data.department.size() >= 1 && data.department.size() <= 80
+        && data.lessonsDelivered is number && data.lessonsDelivered >= 0 && data.lessonsDelivered <= 1000
+        && data.homeworkPublished is number && data.homeworkPublished >= 0 && data.homeworkPublished <= 1000
+        && data.avgResponseMinutes is number && data.avgResponseMinutes >= 0 && data.avgResponseMinutes <= 10000
+        && data.studentMasteryPct is number && data.studentMasteryPct >= 0 && data.studentMasteryPct <= 100
+        && data.evaluationScore is number && data.evaluationScore >= 0 && data.evaluationScore <= 100
+        && data.periodLabel is string && data.periodLabel.size() >= 1 && data.periodLabel.size() <= 60
+        && (!('evaluationSummary' in data) || (data.evaluationSummary is string && data.evaluationSummary.size() <= 400))
+        && data.scope == 'school'
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidMessage(data) {
+      return data.keys().hasAll(['parentUid', 'studentId', 'studentName', 'teacherName', 'senderRole', 'senderName', 'body', 'createdAt'])
+        && data.keys().hasOnly(['parentUid', 'studentId', 'studentName', 'teacherName', 'senderRole', 'senderName', 'body', 'createdAt'])
+        && data.parentUid is string && data.parentUid.size() >= 1 && data.parentUid.size() <= 128
+        && isValidId(data.studentId)
+        && data.studentName is string && data.studentName.size() >= 2 && data.studentName.size() <= 120
+        && data.teacherName is string && data.teacherName.size() >= 2 && data.teacherName.size() <= 120
+        && data.senderRole in ['parent', 'teacher', 'admin']
+        && data.senderName is string && data.senderName.size() >= 2 && data.senderName.size() <= 120
+        && data.body is string && data.body.size() >= 1 && data.body.size() <= 1000
+        && data.createdAt is timestamp;
+    }
+
+    function isValidAnnouncement(data) {
+      return data.keys().hasAll(['title', 'body', 'category', 'targetAudience', 'authorName', 'scope', 'createdAt'])
+        && data.keys().hasOnly(['title', 'body', 'category', 'targetAudience', 'authorName', 'scope', 'createdAt'])
+        && data.title is string && data.title.size() >= 2 && data.title.size() <= 160
+        && data.body is string && data.body.size() >= 2 && data.body.size() <= 2000
+        && data.category in ['circular', 'urgent', 'academic', 'event']
+        && data.targetAudience is string && data.targetAudience.size() >= 1 && data.targetAudience.size() <= 80
+        && data.authorName is string && data.authorName.size() >= 2 && data.authorName.size() <= 120
+        && data.scope == 'school'
+        && data.createdAt is timestamp;
+    }
+
+    function isValidActivity(data) {
+      return data.keys().hasAll(['title', 'description', 'activityType', 'eventDate', 'location', 'capacity', 'registeredCount', 'scope', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['title', 'description', 'activityType', 'eventDate', 'location', 'capacity', 'registeredCount', 'imageUrl', 'scope', 'createdAt', 'updatedAt'])
+        && data.title is string && data.title.size() >= 2 && data.title.size() <= 160
+        && data.description is string && data.description.size() >= 2 && data.description.size() <= 1000
+        && data.activityType in ['trip', 'workshop', 'competition', 'ceremony']
+        && data.eventDate is string && data.eventDate.size() >= 4 && data.eventDate.size() <= 40
+        && data.location is string && data.location.size() >= 2 && data.location.size() <= 120
+        && data.capacity is number && data.capacity >= 1 && data.capacity <= 2000
+        && data.registeredCount is number && data.registeredCount >= 0 && data.registeredCount <= data.capacity
+        && (!('imageUrl' in data) || (data.imageUrl is string && data.imageUrl.size() <= 300))
+        && data.scope == 'school'
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidActivityRegistration(data, activityId) {
+      return data.keys().hasAll(['activityId', 'studentId', 'studentName', 'parentUid', 'createdAt'])
+        && data.keys().hasOnly(['activityId', 'studentId', 'studentName', 'parentUid', 'createdAt'])
+        && data.activityId == activityId
+        && isValidId(data.studentId)
+        && data.studentName is string && data.studentName.size() >= 2 && data.studentName.size() <= 120
+        && data.parentUid is string && data.parentUid.size() >= 1 && data.parentUid.size() <= 128
+        && data.createdAt is timestamp;
+    }
+
+    function isValidInvoice(data) {
+      return data.keys().hasAll(['invoiceNumber', 'studentId', 'studentName', 'parentUid', 'title', 'amount', 'dueDate', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['invoiceNumber', 'studentId', 'studentName', 'parentUid', 'title', 'amount', 'dueDate', 'status', 'paymentMethod', 'receiptRef', 'createdAt', 'updatedAt'])
+        && data.invoiceNumber is string && data.invoiceNumber.size() >= 3 && data.invoiceNumber.size() <= 40 && data.invoiceNumber.matches('^[a-zA-Z0-9_\\-]+$')
+        && isValidId(data.studentId)
+        && data.studentName is string && data.studentName.size() >= 2 && data.studentName.size() <= 120
+        && data.parentUid is string && data.parentUid.size() >= 1 && data.parentUid.size() <= 128
+        && data.title is string && data.title.size() >= 2 && data.title.size() <= 140
+        && data.amount is number && data.amount > 0 && data.amount <= 100000000
+        && data.dueDate is string && data.dueDate.size() == 10 && data.dueDate.matches('^\\d{4}-\\d{2}-\\d{2}$')
+        && data.status in ['pending', 'paid', 'overdue']
+        && (!('paymentMethod' in data) || (data.paymentMethod is string && data.paymentMethod.size() <= 60))
+        && (!('receiptRef' in data) || (data.receiptRef is string && data.receiptRef.size() <= 80))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidDonationCampaign(data) {
+      return data.keys().hasAll(['title', 'description', 'category', 'targetAmount', 'collectedAmount', 'donorsCount', 'status', 'createdByName', 'scope', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['title', 'description', 'category', 'targetAmount', 'collectedAmount', 'donorsCount', 'status', 'createdByName', 'scope', 'createdAt', 'updatedAt'])
+        && data.title is string && data.title.size() >= 2 && data.title.size() <= 160
+        && data.description is string && data.description.size() >= 2 && data.description.size() <= 600
+        && data.category in ['orphans_support', 'supplies', 'facilities', 'activities', 'general']
+        && data.targetAmount is number && data.targetAmount >= 1000 && data.targetAmount <= 1000000000
+        && data.collectedAmount is number && data.collectedAmount >= 0 && data.collectedAmount <= 1000000000
+        && data.donorsCount is number && data.donorsCount >= 0 && data.donorsCount <= 1000000
+        && data.status in ['active', 'completed']
+        && data.createdByName is string && data.createdByName.size() >= 2 && data.createdByName.size() <= 120
+        && data.scope == 'school'
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidDonation(data) {
+      return data.keys().hasAll(['campaignId', 'campaignTitle', 'donorUid', 'donorName', 'isAnonymous', 'amount', 'paymentMethod', 'receiptRef', 'createdAt'])
+        && data.keys().hasOnly(['campaignId', 'campaignTitle', 'donorUid', 'donorName', 'isAnonymous', 'amount', 'paymentMethod', 'receiptRef', 'note', 'createdAt'])
+        && isValidId(data.campaignId)
+        && data.campaignTitle is string && data.campaignTitle.size() >= 2 && data.campaignTitle.size() <= 160
+        && data.donorUid is string && data.donorUid.size() >= 1 && data.donorUid.size() <= 128
+        && data.donorName is string && data.donorName.size() >= 2 && data.donorName.size() <= 120
+        && data.isAnonymous is bool
+        && data.amount is number && data.amount >= 1000 && data.amount <= 100000000
+        && data.paymentMethod is string && data.paymentMethod.size() >= 2 && data.paymentMethod.size() <= 80
+        && data.receiptRef is string && data.receiptRef.size() >= 4 && data.receiptRef.size() <= 60 && data.receiptRef.matches('^[a-zA-Z0-9_\\-]+$')
+        && (!('note' in data) || (data.note is string && data.note.size() <= 300))
+        && data.createdAt is timestamp;
+    }
+
+    function isValidSchoolPoll(data) {
+      return data.keys().hasAll(['title', 'description', 'category', 'targetAudience', 'targetGrade', 'closesAt', 'status', 'options', 'optionCounts', 'totalVotes', 'createdByName', 'createdByRole', 'scope', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['title', 'description', 'category', 'targetAudience', 'targetGrade', 'closesAt', 'status', 'options', 'optionCounts', 'totalVotes', 'createdByName', 'createdByRole', 'scope', 'createdAt', 'updatedAt'])
+        && data.title is string && data.title.size() >= 2 && data.title.size() <= 160
+        && data.description is string && data.description.size() >= 2 && data.description.size() <= 800
+        && data.category in ['trip', 'decision', 'schedule', 'activity', 'general']
+        && data.targetAudience in ['all', 'parents', 'students']
+        && data.targetGrade is string && data.targetGrade.size() >= 1 && data.targetGrade.size() <= 60
+        && data.closesAt is string && data.closesAt.size() == 10 && data.closesAt.matches('^\\d{4}-\\d{2}-\\d{2}$')
+        && data.status in ['open', 'closed']
+        && data.options is list && data.options.size() >= 2 && data.options.size() <= 5
+        && data.options[0] is string && data.options[0].size() >= 1 && data.options[0].size() <= 120
+        && data.options[1] is string && data.options[1].size() >= 1 && data.options[1].size() <= 120
+        && (data.options.size() < 3 || (data.options[2] is string && data.options[2].size() >= 1 && data.options[2].size() <= 120))
+        && (data.options.size() < 4 || (data.options[3] is string && data.options[3].size() >= 1 && data.options[3].size() <= 120))
+        && (data.options.size() < 5 || (data.options[4] is string && data.options[4].size() >= 1 && data.options[4].size() <= 120))
+        && data.optionCounts is list && data.optionCounts.size() == data.options.size()
+        && data.optionCounts[0] is number && data.optionCounts[0] >= 0
+        && data.optionCounts[1] is number && data.optionCounts[1] >= 0
+        && (data.optionCounts.size() < 3 || (data.optionCounts[2] is number && data.optionCounts[2] >= 0))
+        && (data.optionCounts.size() < 4 || (data.optionCounts[3] is number && data.optionCounts[3] >= 0))
+        && (data.optionCounts.size() < 5 || (data.optionCounts[4] is number && data.optionCounts[4] >= 0))
+        && data.totalVotes is number && data.totalVotes >= 0 && data.totalVotes <= 1000000
+        && (
+          data.optionCounts[0]
+          + data.optionCounts[1]
+          + (data.optionCounts.size() >= 3 ? data.optionCounts[2] : 0)
+          + (data.optionCounts.size() >= 4 ? data.optionCounts[3] : 0)
+          + (data.optionCounts.size() >= 5 ? data.optionCounts[4] : 0)
+        ) == data.totalVotes
+        && data.createdByName is string && data.createdByName.size() >= 2 && data.createdByName.size() <= 120
+        && data.createdByRole in ['admin', 'teacher']
+        && data.scope == 'school'
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPollVote(data) {
+      return data.keys().hasAll(['pollId', 'voterUid', 'voterName', 'voterRole', 'selectedOptionIndex', 'selectedOptionLabel', 'createdAt'])
+        && data.keys().hasOnly(['pollId', 'voterUid', 'voterName', 'voterRole', 'selectedOptionIndex', 'selectedOptionLabel', 'comment', 'createdAt'])
+        && isValidId(data.pollId)
+        && data.voterUid is string && data.voterUid == request.auth.uid
+        && data.voterName is string && data.voterName.size() >= 2 && data.voterName.size() <= 120
+        && data.voterRole in ['parent', 'teacher', 'admin', 'supervisor']
+        && data.selectedOptionIndex is number && data.selectedOptionIndex >= 0 && data.selectedOptionIndex <= 4
+        && data.selectedOptionLabel is string && data.selectedOptionLabel.size() >= 1 && data.selectedOptionLabel.size() <= 120
+        && (!('comment' in data) || (data.comment is string && data.comment.size() <= 400))
+        && data.createdAt is timestamp;
+    }
+
+    function isValidHomework(data) {
+      return data.keys().hasAll(['title', 'subject', 'grade', 'teacherName', 'description', 'dueDate', 'scope', 'createdAt'])
+        && data.keys().hasOnly(['title', 'subject', 'grade', 'teacherName', 'description', 'dueDate', 'scope', 'createdAt'])
+        && data.title is string && data.title.size() >= 2 && data.title.size() <= 160
+        && data.subject is string && data.subject.size() >= 1 && data.subject.size() <= 80
+        && data.grade is string && data.grade.size() >= 1 && data.grade.size() <= 60
+        && data.teacherName is string && data.teacherName.size() >= 2 && data.teacherName.size() <= 120
+        && data.description is string && data.description.size() >= 2 && data.description.size() <= 1200
+        && data.dueDate is string && data.dueDate.size() == 10 && data.dueDate.matches('^\\d{4}-\\d{2}-\\d{2}$')
+        && data.scope == 'school'
+        && data.createdAt is timestamp;
+    }
+
+    function isValidLibraryResource(data) {
+      return data.keys().hasAll(['title', 'subject', 'grade', 'resourceType', 'authorName', 'summary', 'fileSizeLabel', 'downloadCount', 'scope', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['title', 'subject', 'grade', 'resourceType', 'authorName', 'summary', 'fileSizeLabel', 'coverUrl', 'downloadCount', 'scope', 'createdAt', 'updatedAt'])
+        && data.title is string && data.title.size() >= 2 && data.title.size() <= 160
+        && data.subject is string && data.subject.size() >= 1 && data.subject.size() <= 80
+        && data.grade is string && data.grade.size() >= 1 && data.grade.size() <= 60
+        && data.resourceType in ['ebook', 'handout', 'guide', 'worksheet']
+        && data.authorName is string && data.authorName.size() >= 2 && data.authorName.size() <= 120
+        && data.summary is string && data.summary.size() >= 2 && data.summary.size() <= 800
+        && data.fileSizeLabel is string && data.fileSizeLabel.size() >= 1 && data.fileSizeLabel.size() <= 40
+        && (!('coverUrl' in data) || (data.coverUrl is string && data.coverUrl.size() <= 300))
+        && data.downloadCount is number && data.downloadCount >= 0 && data.downloadCount <= 10000000
+        && data.scope == 'school'
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidNotification(data) {
+      return data.keys().hasAll(['parentUid', 'title', 'message', 'notifType', 'isRead', 'createdAt'])
+        && data.keys().hasOnly(['parentUid', 'title', 'message', 'notifType', 'isRead', 'createdAt'])
+        && data.parentUid is string && data.parentUid.size() >= 1 && data.parentUid.size() <= 128
+        && data.title is string && data.title.size() >= 2 && data.title.size() <= 140
+        && data.message is string && data.message.size() >= 2 && data.message.size() <= 500
+        && data.notifType in ['attendance', 'circular', 'homework', 'payment', 'grade', 'behavior']
+        && data.isRead is bool
+        && data.createdAt is timestamp;
+    }
+
+    function isValidAttendanceReport(data) {
+      return data.keys().hasAll(['monthKey', 'monthLabel', 'gradeFilter', 'totalStudents', 'totalRecords', 'presentCount', 'absentCount', 'lateCount', 'excusedCount', 'avgAttendancePct', 'fileName', 'generatedBy', 'scope', 'createdAt'])
+        && data.keys().hasOnly(['monthKey', 'monthLabel', 'gradeFilter', 'totalStudents', 'totalRecords', 'presentCount', 'absentCount', 'lateCount', 'excusedCount', 'avgAttendancePct', 'fileName', 'generatedBy', 'scope', 'createdAt'])
+        && data.monthKey is string && data.monthKey.size() == 7 && data.monthKey.matches('^\\d{4}-\\d{2}$')
+        && data.monthLabel is string && data.monthLabel.size() >= 2 && data.monthLabel.size() <= 60
+        && data.gradeFilter is string && data.gradeFilter.size() >= 1 && data.gradeFilter.size() <= 60
+        && data.totalStudents is number && data.totalStudents >= 0 && data.totalStudents <= 10000
+        && data.totalRecords is number && data.totalRecords >= 0 && data.totalRecords <= 100000
+        && data.presentCount is number && data.presentCount >= 0 && data.presentCount <= 100000
+        && data.absentCount is number && data.absentCount >= 0 && data.absentCount <= 100000
+        && data.lateCount is number && data.lateCount >= 0 && data.lateCount <= 100000
+        && data.excusedCount is number && data.excusedCount >= 0 && data.excusedCount <= 100000
+        && data.avgAttendancePct is number && data.avgAttendancePct >= 0 && data.avgAttendancePct <= 100
+        && data.fileName is string && data.fileName.size() >= 4 && data.fileName.size() <= 120
+        && data.generatedBy is string && data.generatedBy.size() >= 2 && data.generatedBy.size() <= 120
+        && data.scope == 'school'
+        && data.createdAt is timestamp;
+    }
+
+    function isValidEmailAlertSubscription(data) {
+      return data.keys().hasAll(['uid', 'displayName', 'email', 'role', 'enabled', 'alertAttendance', 'alertBehavior', 'alertHomework', 'alertGrades', 'alertPayments', 'alertCirculars', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'displayName', 'email', 'role', 'enabled', 'alertAttendance', 'alertBehavior', 'alertHomework', 'alertGrades', 'alertPayments', 'alertCirculars', 'gradeLabel', 'createdAt', 'updatedAt'])
+        && data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128
+        && data.displayName is string && data.displayName.size() >= 2 && data.displayName.size() <= 120
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 160
+        && data.role in ['parent', 'teacher', 'admin', 'supervisor']
+        && data.enabled is bool
+        && data.alertAttendance is bool
+        && data.alertBehavior is bool
+        && data.alertHomework is bool
+        && data.alertGrades is bool
+        && data.alertPayments is bool
+        && data.alertCirculars is bool
+        && (!('gradeLabel' in data) || (data.gradeLabel is string && data.gradeLabel.size() <= 60))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidEmailAlertLog(data) {
+      return data.keys().hasAll(['senderUid', 'senderName', 'senderEmail', 'recipientUid', 'recipientName', 'recipientEmail', 'category', 'subject', 'bodyPreview', 'status', 'createdAt'])
+        && data.keys().hasOnly(['senderUid', 'senderName', 'senderEmail', 'recipientUid', 'recipientName', 'recipientEmail', 'category', 'subject', 'bodyPreview', 'status', 'gmailMessageId', 'errorMessage', 'autoDispatchKey', 'createdAt'])
+        && data.senderUid is string && data.senderUid.size() >= 1 && data.senderUid.size() <= 128
+        && data.senderName is string && data.senderName.size() >= 2 && data.senderName.size() <= 120
+        && data.senderEmail is string && data.senderEmail.size() >= 3 && data.senderEmail.size() <= 160
+        && data.recipientUid is string && data.recipientUid.size() >= 1 && data.recipientUid.size() <= 128
+        && data.recipientName is string && data.recipientName.size() >= 1 && data.recipientName.size() <= 120
+        && data.recipientEmail is string && data.recipientEmail.size() >= 3 && data.recipientEmail.size() <= 160
+        && data.category in ['attendance', 'behavior', 'homework', 'grade', 'payment', 'circular', 'monthly_report', 'custom']
+        && data.subject is string && data.subject.size() >= 2 && data.subject.size() <= 180
+        && data.bodyPreview is string && data.bodyPreview.size() >= 2 && data.bodyPreview.size() <= 500
+        && data.status in ['sent', 'failed']
+        && (!('gmailMessageId' in data) || (data.gmailMessageId is string && data.gmailMessageId.size() <= 128))
+        && (!('errorMessage' in data) || (data.errorMessage is string && data.errorMessage.size() <= 300))
+        && (!('autoDispatchKey' in data) || (data.autoDispatchKey is string && data.autoDispatchKey.size() >= 1 && data.autoDispatchKey.size() <= 160))
+        && data.createdAt is timestamp;
+    }
+
+    // Admins Collection
+    match /admins/{adminUid} {
+      allow get: if isValidId(adminUid) && (isOwner(adminUid) || isAdmin());
+      allow list: if isAdminByEmail();
+      allow create, update, delete: if isValidId(adminUid) && isAdminByEmail();
+    }
+
+    // Role Permissions Matrix (Admin-editable for the 4 editions)
+    match /rolePermissions/{roleId} {
+      allow get: if isValidId(roleId) && isVerified() && existing().scope == 'school';
+      allow list: if isVerified() && resource.data.scope == 'school';
+      allow create: if isVerified() && isValidId(roleId)
+        && roleId in ['parent', 'teacher', 'admin', 'supervisor']
+        && isValidRolePermissions(incoming())
+        && incoming().role == roleId
+        && incoming().updatedAt == request.time
+        && isAdmin();
+      allow update: if isVerified() && isValidId(roleId)
+        && roleId in ['parent', 'teacher', 'admin', 'supervisor']
+        && isValidRolePermissions(incoming())
+        && incoming().role == existing().role
+        && incoming().scope == existing().scope
+        && incoming().updatedAt == request.time
+        && isAdmin();
+      allow delete: if false;
+    }
+
+    // Users Collection (PII Isolated)
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isAdminByEmail() || (isVerified() && resource.data.uid == request.auth.uid);
+      allow create: if isVerified() && isValidId(userId) && isOwner(userId)
+        && isValidUserProfile(incoming())
+        && incoming().uid == request.auth.uid
+        && (incoming().role == 'parent' || isAdminByEmail())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerified() && isValidId(userId)
+        && isValidUserProfile(incoming())
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          (isOwner(userId) && incoming().role == existing().role && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'updatedAt'])) ||
+          (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'role', 'updatedAt']))
+        );
+      allow delete: if isValidId(userId) && isAdmin();
+    }
+
+    // Students Collection (PII Isolated by parentUid; behaviorScore can ONLY decrease)
+    match /students/{studentId} {
+      allow get: if isValidId(studentId) && isVerified() && (isAdmin() || canDeductBehavior() || existing().parentUid == request.auth.uid);
+      allow list: if isVerified() && (isAdminByEmail() || resource.data.parentUid == request.auth.uid);
+      allow create: if isVerified() && isValidId(studentId)
+        && isValidStudent(incoming())
+        && (!('behaviorScore' in incoming()) || incoming().behaviorScore == 100)
+        && (isAdmin() || incoming().parentUid == request.auth.uid)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerified() && isValidId(studentId)
+        && isValidStudent(incoming())
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          (
+            isAdmin()
+            && incoming().diff(existing()).affectedKeys().hasOnly(['fullName', 'grade', 'section', 'parentUid', 'parentName', 'parentPhone', 'gpa', 'attendanceRate', 'behaviorScore', 'updatedAt'])
+            && (!('behaviorScore' in incoming()) || incoming().behaviorScore <= (('behaviorScore' in existing()) ? existing().behaviorScore : 100))
+          ) ||
+          (
+            canDeductBehavior()
+            && incoming().diff(existing()).affectedKeys().hasOnly(['behaviorScore', 'updatedAt'])
+            && ('behaviorScore' in incoming())
+            && incoming().behaviorScore is number
+            && incoming().behaviorScore >= 0
+            && incoming().behaviorScore < (('behaviorScore' in existing()) ? existing().behaviorScore : 100)
+          ) ||
+          (
+            existing().parentUid == request.auth.uid
+            && incoming().parentUid == existing().parentUid
+            && incoming().diff(existing()).affectedKeys().hasOnly(['parentPhone', 'updatedAt'])
+          )
+        );
+      allow delete: if isValidId(studentId) && isAdmin();
+    }
+
+    // Immutable Behavior Score Deductions Log (Teachers, Admins, Supervisors only)
+    match /behaviorDeductions/{deductionId} {
+      allow get: if isValidId(deductionId) && isVerified() && (isAdmin() || canDeductBehavior() || existing().parentUid == request.auth.uid);
+      allow list: if isVerified() && (isAdminByEmail() || resource.data.parentUid == request.auth.uid);
+      allow create: if isVerified() && isValidId(deductionId)
+        && isValidBehaviorDeduction(incoming())
+        && incoming().createdAt == request.time
+        && canDeductBehavior()
+        && exists(/databases/$(database)/documents/students/$(incoming().studentId));
+      allow update, delete: if false;
+    }
+
+    // Daily Attendance Logs
+    match /attendance/{recordId} {
+      allow get: if isValidId(recordId) && isVerified() && (isAdmin() || hasCurrentRolePermission('viewAttendance') || existing().parentUid == request.auth.uid);
+      allow list: if isVerified() && (isAdminByEmail() || resource.data.parentUid == request.auth.uid);
+      allow create: if isVerified() && isValidId(recordId)
+        && isValidAttendance(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (
+          (
+            (isAdmin() || hasCurrentRolePermission('markAttendance'))
+            && exists(/databases/$(database)/documents/students/$(incoming().studentId))
+          ) || isValidQrStudentCheckIn(incoming())
+        );
+      allow update: if isVerified() && isValidId(recordId)
+        && isValidAttendance(incoming())
+        && incoming().studentId == existing().studentId
+        && incoming().parentUid == existing().parentUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          (
+            (isAdmin() || hasCurrentRolePermission('markAttendance'))
+            && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'checkInTime', 'parentNotified', 'notes', 'qrSessionId', 'updatedAt'])
+          ) || (
+            isValidQrStudentCheckIn(incoming())
+            && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'checkInTime', 'notes', 'qrSessionId', 'updatedAt'])
+          )
+        );
+      allow delete: if isValidId(recordId) && isAdmin();
+    }
+
+    // Period & Section/Category Attendance Logs
+    match /periodAttendance/{recordId} {
+      allow get: if isValidId(recordId) && isVerified() && (isAdmin() || hasCurrentRolePermission('viewAttendance') || existing().parentUid == request.auth.uid);
+      allow list: if isVerified() && (isAdminByEmail() || resource.data.parentUid == request.auth.uid);
+      allow create: if isVerified() && isValidId(recordId)
+        && isValidPeriodAttendance(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (isAdmin() || hasCurrentRolePermission('markAttendance'))
+        && exists(/databases/$(database)/documents/students/$(incoming().studentId));
+      allow update: if isVerified() && isValidId(recordId)
+        && isValidPeriodAttendance(incoming())
+        && incoming().studentId == existing().studentId
+        && incoming().parentUid == existing().parentUid
+        && incoming().date == existing().date
+        && incoming().periodNumber == existing().periodNumber
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'categoryLabel', 'subject', 'recordedBy', 'parentNotified', 'updatedAt'])
+        && (isAdmin() || hasCurrentRolePermission('markAttendance'));
+      allow delete: if isValidId(recordId) && isAdmin();
+    }
+
+    // Interactive School Calendar Events (Exams, Trips, Meetings)
+    match /calendarEvents/{eventId} {
+      allow get: if isValidId(eventId) && isVerified() && existing().scope == 'school';
+      allow list: if isVerified() && resource.data.scope == 'school';
+      allow create: if isVerified() && isValidId(eventId)
+        && isValidCalendarEvent(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && canManageCalendar();
+      allow update: if isVerified() && isValidId(eventId)
+        && isValidCalendarEvent(incoming())
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().scope == existing().scope
+        && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'eventType', 'eventDate', 'startTime', 'targetGrade', 'location', 'notes', 'updatedAt'])
+        && canManageCalendar();
+      allow delete: if isValidId(eventId) && isVerified() && canManageCalendar();
+    }
+
+    // Academic Grades
+    match /grades/{gradeId} {
+      allow get: if isValidId(gradeId) && isVerified() && (isAdmin() || hasCurrentRolePermission('viewGrades') || existing().parentUid == request.auth.uid);
+      allow list: if isVerified() && (isAdminByEmail() || resource.data.parentUid == request.auth.uid);
+      allow create: if isVerified() && isValidId(gradeId)
+        && isValidGrade(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (isAdmin() || hasCurrentRolePermission('publishGrades'))
+        && exists(/databases/$(database)/documents/students/$(incoming().studentId));
+      allow update: if isVerified() && isValidId(gradeId)
+        && isValidGrade(incoming())
+        && incoming().studentId == existing().studentId
+        && incoming().parentUid == existing().parentUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['midtermScore', 'courseworkScore', 'finalScore', 'totalScore', 'teacherNote', 'term', 'updatedAt'])
+        && (isAdmin() || hasCurrentRolePermission('publishGrades'));
+      allow delete: if isValidId(gradeId) && isAdmin();
+    }
+
+    // Teacher Activity & Performance Evaluations
+    match /teachers/{teacherId} {
+      allow get: if isValidId(teacherId) && isVerified() && existing().scope == 'school';
+      allow list: if isVerified() && resource.data.scope == 'school';
+      allow create: if isVerified() && isValidId(teacherId)
+        && isValidTeacherEvaluation(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && isAdmin();
+      allow update: if isVerified() && isValidId(teacherId)
+        && isValidTeacherEvaluation(incoming())
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['lessonsDelivered', 'homeworkPublished', 'avgResponseMinutes', 'studentMasteryPct', 'evaluationScore', 'periodLabel', 'evaluationSummary', 'updatedAt'])
+        && isAdmin();
+      allow delete: if isValidId(teacherId) && isAdmin();
+    }
+
+    // Direct Teacher-Parent Messages
+    match /messages/{messageId} {
+      allow get: if isValidId(messageId) && isVerified() && (isAdmin() || hasCurrentRolePermission('messageParents') || existing().parentUid == request.auth.uid);
+      allow list: if isVerified() && (isAdminByEmail() || resource.data.parentUid == request.auth.uid);
+      allow create: if isVerified() && isValidId(messageId)
+        && isValidMessage(incoming())
+        && incoming().createdAt == request.time
+        && exists(/databases/$(database)/documents/students/$(incoming().studentId))
+        && (
+          isAdmin() ||
+          (hasCurrentRolePermission('messageParents') && incoming().senderRole in ['teacher', 'admin']) ||
+          (incoming().parentUid == request.auth.uid && incoming().senderRole == 'parent')
+        );
+      allow update: if false;
+      allow delete: if isValidId(messageId) && isAdmin();
+    }
+
+    // School Announcements & Circulars
+    match /announcements/{announcementId} {
+      allow get: if isValidId(announcementId) && isVerified() && existing().scope == 'school';
+      allow list: if isVerified() && resource.data.scope == 'school';
+      allow create: if isVerified() && isValidId(announcementId)
+        && isValidAnnouncement(incoming())
+        && incoming().createdAt == request.time
+        && (isAdmin() || hasCurrentRolePermission('manageAnnouncements'));
+      allow update: if isVerified() && isValidId(announcementId)
+        && isValidAnnouncement(incoming())
+        && incoming().createdAt == existing().createdAt
+        && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'body', 'category', 'targetAudience'])
+        && (isAdmin() || hasCurrentRolePermission('manageAnnouncements'));
+      allow delete: if isValidId(announcementId) && isAdmin();
+    }
+
+    // School Activities, Trips & Events
+    match /activities/{activityId} {
+      allow get: if isValidId(activityId) && isVerified() && existing().scope == 'school';
+      allow list: if isVerified() && resource.data.scope == 'school';
+      allow create: if isVerified() && isValidId(activityId)
+        && isValidActivity(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (isAdmin() || hasCurrentRolePermission('manageAnnouncements'));
+      allow update: if isVerified() && isValidId(activityId)
+        && isValidActivity(incoming())
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          ((isAdmin() || hasCurrentRolePermission('manageAnnouncements')) && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'activityType', 'eventDate', 'location', 'capacity', 'registeredCount', 'imageUrl', 'updatedAt'])) ||
+          (incoming().diff(existing()).affectedKeys().hasOnly(['registeredCount', 'updatedAt']) && incoming().registeredCount == existing().registeredCount + 1 && incoming().registeredCount <= existing().capacity)
+        );
+      allow delete: if isValidId(activityId) && isAdmin();
+
+      match /registrations/{registrationId} {
+        allow get: if isValidId(activityId) && isValidId(registrationId) && isVerified() && (isAdmin() || existing().parentUid == request.auth.uid);
+        allow list: if isVerified() && (isAdminByEmail() || resource.data.parentUid == request.auth.uid);
+        allow create: if isValidId(activityId) && isValidId(registrationId) && isVerified()
+          && isValidActivityRegistration(incoming(), activityId)
+          && exists(/databases/$(database)/documents/activities/$(activityId))
+          && exists(/databases/$(database)/documents/students/$(incoming().studentId))
+          && (isAdmin() || incoming().parentUid == request.auth.uid)
+          && incoming().createdAt == request.time;
+        allow update: if false;
+        allow delete: if isValidId(activityId) && isValidId(registrationId) && isVerified() && (isAdmin() || existing().parentUid == request.auth.uid);
+      }
+    }
+
+    // Tuition Invoices & Electronic Payments
+    match /invoices/{invoiceId} {
+      allow get: if isValidId(invoiceId) && isVerified() && (isAdmin() || existing().parentUid == request.auth.uid);
+      allow list: if isVerified() && (isAdminByEmail() || resource.data.parentUid == request.auth.uid);
+      allow create: if isVerified() && isValidId(invoiceId)
+        && isValidInvoice(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (isAdmin() || hasCurrentRolePermission('manageBilling'))
+        && exists(/databases/$(database)/documents/students/$(incoming().studentId));
+      allow update: if isVerified() && isValidId(invoiceId)
+        && isValidInvoice(incoming())
+        && incoming().invoiceNumber == existing().invoiceNumber
+        && incoming().studentId == existing().studentId
+        && incoming().parentUid == existing().parentUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          ((isAdmin() || hasCurrentRolePermission('manageBilling')) && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'amount', 'dueDate', 'status', 'paymentMethod', 'receiptRef', 'updatedAt'])) ||
+          (existing().parentUid == request.auth.uid && existing().status != 'paid' && incoming().status == 'paid' && incoming().amount == existing().amount && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'paymentMethod', 'receiptRef', 'updatedAt']))
+        );
+      allow delete: if isValidId(invoiceId) && isAdmin();
+    }
+
+    // Homework Assignments
+    match /homework/{homeworkId} {
+      allow get: if isValidId(homeworkId) && isVerified() && existing().scope == 'school';
+      allow list: if isVerified() && resource.data.scope == 'school';
+      allow create: if isVerified() && isValidId(homeworkId)
+        && isValidHomework(incoming())
+        && incoming().createdAt == request.time
+        && (isAdmin() || hasCurrentRolePermission('publishResources'));
+      allow update: if isVerified() && isValidId(homeworkId)
+        && isValidHomework(incoming())
+        && incoming().createdAt == existing().createdAt
+        && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'subject', 'grade', 'description', 'dueDate'])
+        && (isAdmin() || hasCurrentRolePermission('publishResources'));
+      allow delete: if isValidId(homeworkId) && isAdmin();
+    }
+
+    // Digital Library & E-Books
+    match /libraryResources/{resourceId} {
+      allow get: if isValidId(resourceId) && isVerified() && existing().scope == 'school';
+      allow list: if isVerified() && resource.data.scope == 'school';
+      allow create: if isVerified() && isValidId(resourceId)
+        && isValidLibraryResource(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (isAdmin() || hasCurrentRolePermission('publishResources'));
+      allow update: if isVerified() && isValidId(resourceId)
+        && isValidLibraryResource(incoming())
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          ((isAdmin() || hasCurrentRolePermission('publishResources')) && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'subject', 'grade', 'resourceType', 'authorName', 'summary', 'fileSizeLabel', 'coverUrl', 'downloadCount', 'updatedAt'])) ||
+          (incoming().diff(existing()).affectedKeys().hasOnly(['downloadCount', 'updatedAt']) && incoming().downloadCount == existing().downloadCount + 1)
+        );
+      allow delete: if isValidId(resourceId) && isAdmin();
+    }
+
+    // Instant Parent Mobile Notifications
+    match /notifications/{notificationId} {
+      allow get: if isValidId(notificationId) && isVerified() && (isAdmin() || existing().parentUid == request.auth.uid);
+      allow list: if isVerified() && (isAdminByEmail() || resource.data.parentUid == request.auth.uid);
+      allow create: if isVerified() && isValidId(notificationId)
+        && isValidNotification(incoming())
+        && incoming().createdAt == request.time
+        && (
+          isAdmin()
+          || hasCurrentRolePermission('markAttendance')
+          || hasCurrentRolePermission('publishGrades')
+          || hasCurrentRolePermission('publishResources')
+          || hasCurrentRolePermission('deductBehavior')
+          || hasCurrentRolePermission('manageAnnouncements')
+          || incoming().parentUid == request.auth.uid
+        );
+      allow update: if isVerified() && isValidId(notificationId)
+        && isValidNotification(incoming())
+        && incoming().parentUid == existing().parentUid
+        && incoming().createdAt == existing().createdAt
+        && (isAdmin() || existing().parentUid == request.auth.uid)
+        && incoming().diff(existing()).affectedKeys().hasOnly(['isRead']);
+      allow delete: if isValidId(notificationId) && (isAdmin() || (isVerified() && existing().parentUid == request.auth.uid));
+    }
+
+    // Monthly Attendance PDF Reports Archive
+    match /attendanceReports/{reportId} {
+      allow get: if isValidId(reportId) && isVerified() && existing().scope == 'school';
+      allow list: if isVerified() && resource.data.scope == 'school';
+      allow create: if isVerified() && isValidId(reportId)
+        && isValidAttendanceReport(incoming())
+        && incoming().createdAt == request.time
+        && (isAdmin() || hasCurrentRolePermission('markAttendance'));
+      allow update: if false;
+      allow delete: if isValidId(reportId) && isAdmin();
+    }
+
+    // School Charity Donation Box Campaigns (IQD)
+    match /donationCampaigns/{campaignId} {
+      allow get: if isValidId(campaignId) && isVerified() && existing().scope == 'school';
+      allow list: if isVerified() && resource.data.scope == 'school';
+      allow create: if isVerified() && isValidId(campaignId)
+        && isValidDonationCampaign(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (isAdmin() || hasCurrentRolePermission('manageBilling'));
+      allow update: if isVerified() && isValidId(campaignId)
+        && isValidDonationCampaign(incoming())
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().scope == existing().scope
+        && (
+          ((isAdmin() || hasCurrentRolePermission('manageBilling')) && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'category', 'targetAmount', 'status', 'updatedAt'])) ||
+          (existing().status == 'active' && incoming().diff(existing()).affectedKeys().hasOnly(['collectedAmount', 'donorsCount', 'status', 'updatedAt']) && incoming().collectedAmount > existing().collectedAmount && incoming().donorsCount == existing().donorsCount + 1)
+        );
+      allow delete: if isValidId(campaignId) && isAdmin();
+    }
+
+    // Immutable Donation Contributions & Receipts (IQD, PII Isolated)
+    match /donations/{donationId} {
+      allow get: if isValidId(donationId) && isVerified() && (isAdmin() || existing().donorUid == request.auth.uid);
+      allow list: if isVerified() && (isAdminByEmail() || resource.data.donorUid == request.auth.uid);
+      allow create: if isVerified() && isValidId(donationId)
+        && isValidDonation(incoming())
+        && incoming().donorUid == request.auth.uid
+        && incoming().createdAt == request.time
+        && exists(/databases/$(database)/documents/donationCampaigns/$(incoming().campaignId))
+        && getAfter(/databases/$(database)/documents/donationCampaigns/$(incoming().campaignId)).data.collectedAmount == get(/databases/$(database)/documents/donationCampaigns/$(incoming().campaignId)).data.collectedAmount + incoming().amount
+        && getAfter(/databases/$(database)/documents/donationCampaigns/$(incoming().campaignId)).data.donorsCount == get(/databases/$(database)/documents/donationCampaigns/$(incoming().campaignId)).data.donorsCount + 1;
+      allow update, delete: if false;
+    }
+
+    // Digital Polls & Surveys (Admins/Teachers manage; Parents/Students vote once per poll)
+    match /polls/{pollId} {
+      allow get: if isValidId(pollId) && isVerified() && existing().scope == 'school';
+      allow list: if isVerified() && resource.data.scope == 'school';
+      allow create: if isVerified() && isValidId(pollId)
+        && isValidSchoolPoll(incoming())
+        && (isAdmin() || (canManagePolls() && incoming().totalVotes == 0))
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerified() && isValidId(pollId)
+        && isValidSchoolPoll(incoming())
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().scope == existing().scope
+        && (
+          (
+            canManagePolls()
+            && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'category', 'targetAudience', 'targetGrade', 'closesAt', 'status', 'updatedAt'])
+          ) || (
+            existing().status == 'open'
+            && incoming().diff(existing()).affectedKeys().hasOnly(['optionCounts', 'totalVotes', 'updatedAt'])
+            && incoming().options == existing().options
+            && incoming().totalVotes == existing().totalVotes + 1
+            && incoming().optionCounts[0] >= existing().optionCounts[0]
+            && incoming().optionCounts[1] >= existing().optionCounts[1]
+            && (existing().optionCounts.size() < 3 || incoming().optionCounts[2] >= existing().optionCounts[2])
+            && (existing().optionCounts.size() < 4 || incoming().optionCounts[3] >= existing().optionCounts[3])
+            && (existing().optionCounts.size() < 5 || incoming().optionCounts[4] >= existing().optionCounts[4])
+            && !exists(/databases/$(database)/documents/pollVotes/$(pollId + '_' + request.auth.uid))
+            && existsAfter(/databases/$(database)/documents/pollVotes/$(pollId + '_' + request.auth.uid))
+          )
+        );
+      allow delete: if isValidId(pollId) && isVerified() && canManagePolls();
+    }
+
+    // Immutable Per-User Poll Votes & Feedback Comments
+    match /pollVotes/{voteId} {
+      allow get: if isValidId(voteId) && isVerified() && (isAdmin() || canManagePolls() || existing().voterUid == request.auth.uid);
+      allow list: if isVerified() && (isAdminByEmail() || canManagePolls() || resource.data.voterUid == request.auth.uid);
+      allow create: if isVerified() && isValidId(voteId)
+        && isValidPollVote(incoming())
+        && voteId == incoming().pollId + '_' + request.auth.uid
+        && incoming().createdAt == request.time
+        && exists(/databases/$(database)/documents/polls/$(incoming().pollId))
+        && get(/databases/$(database)/documents/polls/$(incoming().pollId)).data.status == 'open'
+        && incoming().selectedOptionIndex < get(/databases/$(database)/documents/polls/$(incoming().pollId)).data.options.size()
+        && getAfter(/databases/$(database)/documents/polls/$(incoming().pollId)).data.totalVotes == get(/databases/$(database)/documents/polls/$(incoming().pollId)).data.totalVotes + 1;
+      allow update, delete: if false;
+    }
+
+    // PII-Isolated User Email Alert Preferences
+    match /emailAlertSubscriptions/{subId} {
+      allow get: if isValidId(subId) && isVerified() && (isOwner(subId) || isAdmin());
+      allow list: if isVerified() && (isAdmin() || resource.data.uid == request.auth.uid);
+      allow create: if isVerified() && isValidId(subId)
+        && isValidEmailAlertSubscription(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (
+          (isOwner(subId) && incoming().uid == request.auth.uid)
+          || isAdmin()
+        );
+      allow update: if isVerified() && isValidId(subId)
+        && (isOwner(subId) || isAdmin())
+        && isValidEmailAlertSubscription(incoming())
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'displayName',
+          'email',
+          'role',
+          'enabled',
+          'alertAttendance',
+          'alertBehavior',
+          'alertHomework',
+          'alertGrades',
+          'alertPayments',
+          'alertCirculars',
+          'gradeLabel',
+          'updatedAt'
+        ]);
+      allow delete: if isValidId(subId) && (isAdmin() || (isVerified() && isOwner(subId)));
+    }
+
+    // Immutable Email Dispatch Audit Logs
+    match /emailAlertLogs/{logId} {
+      allow get: if isValidId(logId) && isVerified() && (isAdmin() || existing().senderUid == request.auth.uid || existing().recipientUid == request.auth.uid);
+      allow list: if isVerified() && (isAdminByEmail() || resource.data.senderUid == request.auth.uid || resource.data.recipientUid == request.auth.uid);
+      allow create: if isVerified() && isValidId(logId)
+        && isValidEmailAlertLog(incoming())
+        && incoming().senderUid == request.auth.uid
+        && incoming().createdAt == request.time;
+      allow update, delete: if false;
+    }
+
+    // Dynamic Rotating QR Attendance Sessions per Grade & Date
+    match /qrAttendanceSessions/{sessionId} {
+      allow get: if isValidId(sessionId) && isVerified() && existing().scope == 'school';
+      allow list: if isVerified() && resource.data.scope == 'school';
+      allow create: if isVerified() && isValidId(sessionId)
+        && (isAdmin() || hasCurrentRolePermission('markAttendance'))
+        && isValidQrAttendanceSession(incoming())
+        && incoming().createdByUid == request.auth.uid
+        && incoming().scanCount == 0
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerified() && isValidId(sessionId)
+        && isValidQrAttendanceSession(incoming())
+        && incoming().createdByUid == existing().createdByUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().scope == existing().scope
+        && (
+          (
+            (isAdmin() || hasCurrentRolePermission('markAttendance'))
+            && incoming().diff(existing()).affectedKeys().hasOnly(['section', 'token', 'rotationSeconds', 'expiresAtMs', 'isActive', 'scanCount', 'updatedAt'])
+          ) || (
+            existing().isActive == true
+            && incoming().diff(existing()).affectedKeys().hasOnly(['scanCount', 'updatedAt'])
+            && incoming().scanCount == existing().scanCount + 1
+          )
+        );
+      allow delete: if isValidId(sessionId) && isVerified() && (isAdmin() || hasCurrentRolePermission('markAttendance'));
+    }
+  }
+}

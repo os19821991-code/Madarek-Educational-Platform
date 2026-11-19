@@ -1,0 +1,6 @@
+{
+  "name": "منصة مدارك — نظام إدارة المدرسة الذكي",
+  "description": "منصة مدرسية متكاملة لمتابعة الحضور الآلي، تنبيهات أولياء الأمور، إدارة الدرجات، التواصل المباشر، الرسوم الإلكترونية، المكتبة الرقمية، وتقييم المعلمين.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,611 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated school portal user profile with strict role separation.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "email": { "type": "string", "format": "email", "maxLength": 160 },
+        "role": { "type": "string", "enum": ["admin", "teacher", "supervisor", "parent"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "displayName", "email", "role", "createdAt", "updatedAt"]
+    },
+    "Student": {
+      "title": "Student",
+      "description": "Student record linked to a guardian UID for attendance, grades, and billing.",
+      "type": "object",
+      "properties": {
+        "fullName": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "studentCode": { "type": "string", "minLength": 2, "maxLength": 32, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "grade": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "section": { "type": "string", "minLength": 1, "maxLength": 20 },
+        "parentUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "parentName": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "parentPhone": { "type": "string", "minLength": 6, "maxLength": 24 },
+        "gpa": { "type": "number" },
+        "attendanceRate": { "type": "number" },
+        "behaviorScore": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["fullName", "studentCode", "grade", "section", "parentUid", "parentName", "parentPhone", "gpa", "attendanceRate", "createdAt", "updatedAt"]
+    },
+    "AttendanceRecord": {
+      "title": "AttendanceRecord",
+      "description": "Daily automated student attendance log with parent alert status.",
+      "type": "object",
+      "properties": {
+        "studentId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "studentName": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "grade": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "parentUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "date": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$", "maxLength": 10 },
+        "status": { "type": "string", "enum": ["present", "absent", "late", "excused"] },
+        "checkInTime": { "type": "string", "maxLength": 20 },
+        "parentNotified": { "type": "boolean" },
+        "notes": { "type": "string", "maxLength": 300 },
+        "qrSessionId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["studentId", "studentName", "grade", "parentUid", "date", "status", "parentNotified", "createdAt", "updatedAt"]
+    },
+    "GradeRecord": {
+      "title": "GradeRecord",
+      "description": "Academic grade evaluation per student and subject.",
+      "type": "object",
+      "properties": {
+        "studentId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "studentName": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "grade": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "parentUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "subject": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "term": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "midtermScore": { "type": "number" },
+        "courseworkScore": { "type": "number" },
+        "finalScore": { "type": "number" },
+        "totalScore": { "type": "number" },
+        "teacherNote": { "type": "string", "maxLength": 300 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["studentId", "studentName", "grade", "parentUid", "subject", "term", "midtermScore", "courseworkScore", "finalScore", "totalScore", "createdAt", "updatedAt"]
+    },
+    "TeacherEvaluation": {
+      "title": "TeacherEvaluation",
+      "description": "Periodic activity tracking and evaluation metrics for teaching staff.",
+      "type": "object",
+      "properties": {
+        "teacherName": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "subject": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "department": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "lessonsDelivered": { "type": "number" },
+        "homeworkPublished": { "type": "number" },
+        "avgResponseMinutes": { "type": "number" },
+        "studentMasteryPct": { "type": "number" },
+        "evaluationScore": { "type": "number" },
+        "periodLabel": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "evaluationSummary": { "type": "string", "maxLength": 400 },
+        "scope": { "type": "string", "enum": ["school"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["teacherName", "subject", "department", "lessonsDelivered", "homeworkPublished", "avgResponseMinutes", "studentMasteryPct", "evaluationScore", "periodLabel", "scope", "createdAt", "updatedAt"]
+    },
+    "MessageItem": {
+      "title": "MessageItem",
+      "description": "Direct teacher-parent communication message.",
+      "type": "object",
+      "properties": {
+        "parentUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "studentId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "studentName": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "teacherName": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "senderRole": { "type": "string", "enum": ["parent", "teacher", "admin"] },
+        "senderName": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "body": { "type": "string", "minLength": 1, "maxLength": 1000 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["parentUid", "studentId", "studentName", "teacherName", "senderRole", "senderName", "body", "createdAt"]
+    },
+    "Announcement": {
+      "title": "Announcement",
+      "description": "School-wide circular or instant announcement.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "minLength": 2, "maxLength": 160 },
+        "body": { "type": "string", "minLength": 2, "maxLength": 2000 },
+        "category": { "type": "string", "enum": ["circular", "urgent", "academic", "event"] },
+        "targetAudience": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "authorName": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "scope": { "type": "string", "enum": ["school"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "body", "category", "targetAudience", "authorName", "scope", "createdAt"]
+    },
+    "Activity": {
+      "title": "Activity",
+      "description": "School extracurricular activity, educational trip, or event.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "minLength": 2, "maxLength": 160 },
+        "description": { "type": "string", "minLength": 2, "maxLength": 1000 },
+        "activityType": { "type": "string", "enum": ["trip", "workshop", "competition", "ceremony"] },
+        "eventDate": { "type": "string", "minLength": 4, "maxLength": 40 },
+        "location": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "capacity": { "type": "number" },
+        "registeredCount": { "type": "number" },
+        "imageUrl": { "type": "string", "maxLength": 300 },
+        "scope": { "type": "string", "enum": ["school"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "description", "activityType", "eventDate", "location", "capacity", "registeredCount", "scope", "createdAt", "updatedAt"]
+    },
+    "ActivityRegistration": {
+      "title": "ActivityRegistration",
+      "description": "Student registration for a school activity or trip.",
+      "type": "object",
+      "properties": {
+        "activityId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "studentId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "studentName": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "parentUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["activityId", "studentId", "studentName", "parentUid", "createdAt"]
+    },
+    "Invoice": {
+      "title": "Invoice",
+      "description": "Electronic tuition fee invoice and payment tracking record.",
+      "type": "object",
+      "properties": {
+        "invoiceNumber": { "type": "string", "minLength": 3, "maxLength": 40, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "studentId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "studentName": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "parentUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "title": { "type": "string", "minLength": 2, "maxLength": 140 },
+        "amount": { "type": "number" },
+        "dueDate": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$", "maxLength": 10 },
+        "status": { "type": "string", "enum": ["pending", "paid", "overdue"] },
+        "paymentMethod": { "type": "string", "maxLength": 60 },
+        "receiptRef": { "type": "string", "maxLength": 80 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["invoiceNumber", "studentId", "studentName", "parentUid", "title", "amount", "dueDate", "status", "createdAt", "updatedAt"]
+    },
+    "HomeworkItem": {
+      "title": "HomeworkItem",
+      "description": "Published homework assignment with due date for students and parents.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "minLength": 2, "maxLength": 160 },
+        "subject": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "grade": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "teacherName": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "description": { "type": "string", "minLength": 2, "maxLength": 1200 },
+        "dueDate": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$", "maxLength": 10 },
+        "scope": { "type": "string", "enum": ["school"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "subject", "grade", "teacherName", "description", "dueDate", "scope", "createdAt"]
+    },
+    "LibraryResource": {
+      "title": "LibraryResource",
+      "description": "Digital library e-book, study handout, or educational reference.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "minLength": 2, "maxLength": 160 },
+        "subject": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "grade": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "resourceType": { "type": "string", "enum": ["ebook", "handout", "guide", "worksheet"] },
+        "authorName": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "summary": { "type": "string", "minLength": 2, "maxLength": 800 },
+        "fileSizeLabel": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "coverUrl": { "type": "string", "maxLength": 300 },
+        "downloadCount": { "type": "number" },
+        "scope": { "type": "string", "enum": ["school"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "subject", "grade", "resourceType", "authorName", "summary", "fileSizeLabel", "downloadCount", "scope", "createdAt", "updatedAt"]
+    },
+    "ParentNotification": {
+      "title": "ParentNotification",
+      "description": "Instant mobile push notification delivered to a parent account.",
+      "type": "object",
+      "properties": {
+        "parentUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "title": { "type": "string", "minLength": 2, "maxLength": 140 },
+        "message": { "type": "string", "minLength": 2, "maxLength": 500 },
+        "notifType": { "type": "string", "enum": ["attendance", "circular", "homework", "payment", "grade", "behavior"] },
+        "isRead": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["parentUid", "title", "message", "notifType", "isRead", "createdAt"]
+    },
+    "AttendanceReport": {
+      "title": "AttendanceReport",
+      "description": "Archived monthly attendance and absence PDF report record.",
+      "type": "object",
+      "properties": {
+        "monthKey": { "type": "string", "pattern": "^\\d{4}-\\d{2}$", "maxLength": 7 },
+        "monthLabel": { "type": "string", "minLength": 2, "maxLength": 60 },
+        "gradeFilter": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "totalStudents": { "type": "number" },
+        "totalRecords": { "type": "number" },
+        "presentCount": { "type": "number" },
+        "absentCount": { "type": "number" },
+        "lateCount": { "type": "number" },
+        "excusedCount": { "type": "number" },
+        "avgAttendancePct": { "type": "number" },
+        "fileName": { "type": "string", "minLength": 4, "maxLength": 120 },
+        "generatedBy": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "scope": { "type": "string", "enum": ["school"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["monthKey", "monthLabel", "gradeFilter", "totalStudents", "totalRecords", "presentCount", "absentCount", "lateCount", "excusedCount", "avgAttendancePct", "fileName", "generatedBy", "scope", "createdAt"]
+    },
+    "RolePermissions": {
+      "title": "RolePermissions",
+      "description": "Admin-editable capability matrix per application edition (parent, teacher, admin, supervisor).",
+      "type": "object",
+      "properties": {
+        "role": { "type": "string", "enum": ["parent", "teacher", "admin", "supervisor"] },
+        "label": { "type": "string", "minLength": 2, "maxLength": 80 },
+        "viewOverview": { "type": "boolean" },
+        "viewAttendance": { "type": "boolean" },
+        "markAttendance": { "type": "boolean" },
+        "viewGrades": { "type": "boolean" },
+        "publishGrades": { "type": "boolean" },
+        "deductBehavior": { "type": "boolean" },
+        "viewResources": { "type": "boolean" },
+        "publishResources": { "type": "boolean" },
+        "messageStaff": { "type": "boolean" },
+        "messageParents": { "type": "boolean" },
+        "viewAnnouncements": { "type": "boolean" },
+        "manageAnnouncements": { "type": "boolean" },
+        "viewBilling": { "type": "boolean" },
+        "manageBilling": { "type": "boolean" },
+        "viewTeachersEval": { "type": "boolean" },
+        "managePermissions": { "type": "boolean" },
+        "scope": { "type": "string", "enum": ["school"] },
+        "updatedBy": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "role",
+        "label",
+        "viewOverview",
+        "viewAttendance",
+        "markAttendance",
+        "viewGrades",
+        "publishGrades",
+        "deductBehavior",
+        "viewResources",
+        "publishResources",
+        "messageStaff",
+        "messageParents",
+        "viewAnnouncements",
+        "manageAnnouncements",
+        "viewBilling",
+        "manageBilling",
+        "viewTeachersEval",
+        "managePermissions",
+        "scope",
+        "updatedBy",
+        "updatedAt"
+      ]
+    },
+    "BehaviorDeduction": {
+      "title": "BehaviorDeduction",
+      "description": "Immutable behavior score deduction log created by teachers, admins, or supervisors only.",
+      "type": "object",
+      "properties": {
+        "studentId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "studentName": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "grade": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "parentUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "pointsDeducted": { "type": "number" },
+        "previousScore": { "type": "number" },
+        "newScore": { "type": "number" },
+        "reason": { "type": "string", "minLength": 2, "maxLength": 300 },
+        "deductedByName": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "deductedByRole": { "type": "string", "enum": ["teacher", "admin", "supervisor"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["studentId", "studentName", "grade", "parentUid", "pointsDeducted", "previousScore", "newScore", "reason", "deductedByName", "deductedByRole", "createdAt"]
+    },
+    "PeriodAttendanceRecord": {
+      "title": "PeriodAttendanceRecord",
+      "description": "Class-period and section/category attendance log per student, period, and subject.",
+      "type": "object",
+      "properties": {
+        "studentId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "studentName": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "grade": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "section": { "type": "string", "minLength": 1, "maxLength": 20 },
+        "parentUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "date": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$", "maxLength": 10 },
+        "periodNumber": { "type": "number" },
+        "periodLabel": { "type": "string", "minLength": 2, "maxLength": 40 },
+        "subject": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "status": { "type": "string", "enum": ["present", "absent", "late", "excused"] },
+        "categoryLabel": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "recordedBy": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "parentNotified": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["studentId", "studentName", "grade", "section", "parentUid", "date", "periodNumber", "periodLabel", "subject", "status", "categoryLabel", "recordedBy", "parentNotified", "createdAt", "updatedAt"]
+    },
+    "SchoolCalendarEvent": {
+      "title": "SchoolCalendarEvent",
+      "description": "Interactive school calendar event (exam date, school trip, or meeting) visible to students and parents.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "minLength": 2, "maxLength": 160 },
+        "eventType": { "type": "string", "enum": ["exam", "trip", "meeting"] },
+        "eventDate": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$", "maxLength": 10 },
+        "startTime": { "type": "string", "maxLength": 20 },
+        "targetGrade": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "location": { "type": "string", "maxLength": 120 },
+        "notes": { "type": "string", "maxLength": 500 },
+        "createdByName": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "createdByRole": { "type": "string", "enum": ["admin", "teacher"] },
+        "scope": { "type": "string", "enum": ["school"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "eventType", "eventDate", "targetGrade", "createdByName", "createdByRole", "scope", "createdAt", "updatedAt"]
+    },
+    "DonationCampaign": {
+      "title": "DonationCampaign",
+      "description": "School charity donation box campaign denominated in Iraqi Dinar (IQD).",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "minLength": 2, "maxLength": 160 },
+        "description": { "type": "string", "minLength": 2, "maxLength": 600 },
+        "category": { "type": "string", "enum": ["orphans_support", "supplies", "facilities", "activities", "general"] },
+        "targetAmount": { "type": "number" },
+        "collectedAmount": { "type": "number" },
+        "donorsCount": { "type": "number" },
+        "status": { "type": "string", "enum": ["active", "completed"] },
+        "createdByName": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "scope": { "type": "string", "enum": ["school"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "description", "category", "targetAmount", "collectedAmount", "donorsCount", "status", "createdByName", "scope", "createdAt", "updatedAt"]
+    },
+    "DonationRecord": {
+      "title": "DonationRecord",
+      "description": "Immutable donation contribution receipt in Iraqi Dinar (IQD) linked atomically to a donation campaign.",
+      "type": "object",
+      "properties": {
+        "campaignId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "campaignTitle": { "type": "string", "minLength": 2, "maxLength": 160 },
+        "donorUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "donorName": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "isAnonymous": { "type": "boolean" },
+        "amount": { "type": "number" },
+        "paymentMethod": { "type": "string", "minLength": 2, "maxLength": 80 },
+        "receiptRef": { "type": "string", "minLength": 4, "maxLength": 60, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "note": { "type": "string", "maxLength": 300 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["campaignId", "campaignTitle", "donorUid", "donorName", "isAnonymous", "amount", "paymentMethod", "receiptRef", "createdAt"]
+    },
+    "SchoolPoll": {
+      "title": "SchoolPoll",
+      "description": "Digital poll or survey created by admins and teachers to collect opinions from parents and students on trips or school decisions.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "minLength": 2, "maxLength": 160 },
+        "description": { "type": "string", "minLength": 2, "maxLength": 800 },
+        "category": { "type": "string", "enum": ["trip", "decision", "schedule", "activity", "general"] },
+        "targetAudience": { "type": "string", "enum": ["all", "parents", "students"] },
+        "targetGrade": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "closesAt": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$", "maxLength": 10 },
+        "status": { "type": "string", "enum": ["open", "closed"] },
+        "options": { "type": "array" },
+        "optionCounts": { "type": "array" },
+        "totalVotes": { "type": "number" },
+        "createdByName": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "createdByRole": { "type": "string", "enum": ["admin", "teacher"] },
+        "scope": { "type": "string", "enum": ["school"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "description", "category", "targetAudience", "targetGrade", "closesAt", "status", "options", "optionCounts", "totalVotes", "createdByName", "createdByRole", "scope", "createdAt", "updatedAt"]
+    },
+    "PollVote": {
+      "title": "PollVote",
+      "description": "Immutable individual vote and optional feedback comment submitted once per user per poll.",
+      "type": "object",
+      "properties": {
+        "pollId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "voterUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "voterName": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "voterRole": { "type": "string", "enum": ["parent", "teacher", "admin", "supervisor"] },
+        "selectedOptionIndex": { "type": "number" },
+        "selectedOptionLabel": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "comment": { "type": "string", "maxLength": 400 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["pollId", "voterUid", "voterName", "voterRole", "selectedOptionIndex", "selectedOptionLabel", "createdAt"]
+    },
+    "EmailAlertSubscription": {
+      "title": "EmailAlertSubscription",
+      "description": "Per-user email alert preferences and subscribed notification categories.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "displayName": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "email": { "type": "string", "format": "email", "minLength": 3, "maxLength": 160 },
+        "role": { "type": "string", "enum": ["parent", "teacher", "admin", "supervisor"] },
+        "enabled": { "type": "boolean" },
+        "alertAttendance": { "type": "boolean" },
+        "alertBehavior": { "type": "boolean" },
+        "alertHomework": { "type": "boolean" },
+        "alertGrades": { "type": "boolean" },
+        "alertPayments": { "type": "boolean" },
+        "alertCirculars": { "type": "boolean" },
+        "gradeLabel": { "type": "string", "maxLength": 60 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "displayName", "email", "role", "enabled", "alertAttendance", "alertBehavior", "alertHomework", "alertGrades", "alertPayments", "alertCirculars", "createdAt", "updatedAt"]
+    },
+    "EmailAlertLog": {
+      "title": "EmailAlertLog",
+      "description": "Immutable audit log of email alerts and monthly reports dispatched via Gmail API.",
+      "type": "object",
+      "properties": {
+        "senderUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "senderName": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "senderEmail": { "type": "string", "format": "email", "minLength": 3, "maxLength": 160 },
+        "recipientUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "recipientName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "recipientEmail": { "type": "string", "format": "email", "minLength": 3, "maxLength": 160 },
+        "category": { "type": "string", "enum": ["attendance", "behavior", "homework", "grade", "payment", "circular", "monthly_report", "custom"] },
+        "subject": { "type": "string", "minLength": 2, "maxLength": 180 },
+        "bodyPreview": { "type": "string", "minLength": 2, "maxLength": 500 },
+        "status": { "type": "string", "enum": ["sent", "failed"] },
+        "gmailMessageId": { "type": "string", "maxLength": 128 },
+        "errorMessage": { "type": "string", "maxLength": 300 },
+        "autoDispatchKey": { "type": "string", "maxLength": 160 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["senderUid", "senderName", "senderEmail", "recipientUid", "recipientName", "recipientEmail", "category", "subject", "bodyPreview", "status", "createdAt"]
+    },
+    "QrAttendanceSession": {
+      "title": "QrAttendanceSession",
+      "description": "Dynamic rotating QR code session per grade and date for automated daily student attendance check-in.",
+      "type": "object",
+      "properties": {
+        "grade": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "section": { "type": "string", "minLength": 1, "maxLength": 20 },
+        "date": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$", "maxLength": 10 },
+        "token": { "type": "string", "minLength": 6, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "rotationSeconds": { "type": "number" },
+        "expiresAtMs": { "type": "number" },
+        "isActive": { "type": "boolean" },
+        "scanCount": { "type": "number" },
+        "createdByUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "createdByName": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "scope": { "type": "string", "enum": ["school"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["grade", "section", "date", "token", "rotationSeconds", "expiresAtMs", "isActive", "scanCount", "createdByUid", "createdByName", "scope", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Private user profiles isolated by owner UID or admin."
+    },
+    "/students/{studentId}": {
+      "schema": { "$ref": "#/entities/Student" },
+      "description": "Student directory with parent UID ownership."
+    },
+    "/attendance/{recordId}": {
+      "schema": { "$ref": "#/entities/AttendanceRecord" },
+      "description": "Daily attendance records and parent notification flags."
+    },
+    "/grades/{gradeId}": {
+      "schema": { "$ref": "#/entities/GradeRecord" },
+      "description": "Detailed academic evaluation records per student and subject."
+    },
+    "/teachers/{teacherId}": {
+      "schema": { "$ref": "#/entities/TeacherEvaluation" },
+      "description": "Periodic teacher activity metrics and staff performance evaluations."
+    },
+    "/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/MessageItem" },
+      "description": "Direct teacher-parent communication thread messages."
+    },
+    "/announcements/{announcementId}": {
+      "schema": { "$ref": "#/entities/Announcement" },
+      "description": "School-wide circulars and instant parent announcements."
+    },
+    "/activities/{activityId}": {
+      "schema": { "$ref": "#/entities/Activity" },
+      "description": "School extracurricular activities, educational trips, and events."
+    },
+    "/activities/{activityId}/registrations/{registrationId}": {
+      "schema": { "$ref": "#/entities/ActivityRegistration" },
+      "description": "Student registrations under each school activity."
+    },
+    "/invoices/{invoiceId}": {
+      "schema": { "$ref": "#/entities/Invoice" },
+      "description": "Electronic tuition fee invoices and payment receipts."
+    },
+    "/homework/{homeworkId}": {
+      "schema": { "$ref": "#/entities/HomeworkItem" },
+      "description": "Published homework assignments with due dates."
+    },
+    "/libraryResources/{resourceId}": {
+      "schema": { "$ref": "#/entities/LibraryResource" },
+      "description": "Digital library e-books, study handouts, and downloadable resources."
+    },
+    "/notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/ParentNotification" },
+      "description": "Instant mobile notifications for parents."
+    },
+    "/attendanceReports/{reportId}": {
+      "schema": { "$ref": "#/entities/AttendanceReport" },
+      "description": "Monthly attendance and absence PDF report archive."
+    },
+    "/rolePermissions/{roleId}": {
+      "schema": { "$ref": "#/entities/RolePermissions" },
+      "description": "Admin-editable RBAC permissions configuration for the 4 application editions."
+    },
+    "/behaviorDeductions/{deductionId}": {
+      "schema": { "$ref": "#/entities/BehaviorDeduction" },
+      "description": "Immutable audit log of student behavior score deductions with parent ownership."
+    },
+    "/periodAttendance/{recordId}": {
+      "schema": { "$ref": "#/entities/PeriodAttendanceRecord" },
+      "description": "Per-period and section/category attendance logs for each class session."
+    },
+    "/calendarEvents/{eventId}": {
+      "schema": { "$ref": "#/entities/SchoolCalendarEvent" },
+      "description": "School-wide interactive calendar events (exams, trips, meetings) managed by admins and teachers."
+    },
+    "/donationCampaigns/{campaignId}": {
+      "schema": { "$ref": "#/entities/DonationCampaign" },
+      "description": "School donation box campaigns denominated in Iraqi Dinar (IQD)."
+    },
+    "/donations/{donationId}": {
+      "schema": { "$ref": "#/entities/DonationRecord" },
+      "description": "Immutable individual donation contributions and receipts isolated by donor UID or admin."
+    },
+    "/polls/{pollId}": {
+      "schema": { "$ref": "#/entities/SchoolPoll" },
+      "description": "School-wide digital polls and surveys managed by admins and teachers."
+    },
+    "/pollVotes/{voteId}": {
+      "schema": { "$ref": "#/entities/PollVote" },
+      "description": "Immutable per-user poll votes and feedback comments linked atomically to polls."
+    },
+    "/emailAlertSubscriptions/{subId}": {
+      "schema": { "$ref": "#/entities/EmailAlertSubscription" },
+      "description": "PII-isolated per-user email alert preferences and category toggles."
+    },
+    "/emailAlertLogs/{logId}": {
+      "schema": { "$ref": "#/entities/EmailAlertLog" },
+      "description": "Immutable audit log of email alerts sent via Gmail API."
+    },
+    "/qrAttendanceSessions/{sessionId}": {
+      "schema": { "$ref": "#/entities/QrAttendanceSession" },
+      "description": "School-wide rotating QR attendance sessions per grade and date."
+    }
+  }
+}
