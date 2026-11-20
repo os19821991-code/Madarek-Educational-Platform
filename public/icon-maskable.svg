@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="madarikMaskableBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f766e" />
+      <stop offset="100%" stop-color="#115e59" />
+    </linearGradient>
+  </defs>
+  <!-- Full-bleed background for Android maskable cropping -->
+  <rect x="0" y="0" width="512" height="512" fill="url(#madarikMaskableBg)" />
+
+  <!-- Centered emblem kept strictly inside central 68% safe zone (>=16% padding all sides) -->
+  <g transform="translate(82, 82) scale(0.68)" fill="none" stroke="#ffffff" stroke-linecap="round" stroke-linejoin="round">
+    <polygon points="256,118 378,176 256,234 134,176" fill="#ffffff" fill-opacity="0.96" stroke="#ffffff" stroke-width="12" />
+    <path d="M364,184 L364,250" stroke="#99f6e4" stroke-width="14" />
+    <circle cx="364" cy="260" r="11" fill="#99f6e4" stroke="none" />
+    <path d="M148,256 C188,244 228,254 256,278 C284,254 324,244 364,256 L364,358 C324,344 284,354 256,378 C228,354 188,344 148,358 Z" fill="#ffffff" fill-opacity="0.2" stroke="#ffffff" stroke-width="18" />
+    <path d="M256,278 L256,378" stroke="#ffffff" stroke-width="16" />
+    <circle cx="256" cy="176" r="15" fill="#0f766e" stroke="none" />
+  </g>
+</svg>

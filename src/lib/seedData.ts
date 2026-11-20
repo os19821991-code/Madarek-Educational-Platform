@@ -329,9 +329,9 @@ async function runSeedSchoolWorkspace(adminUid: string, adminName: string) {
 
   if (missingStudents.length > 0) {
     const studentsBatch = writeBatch(db);
-    for (const s of missingStudents) {
-      studentsBatch.set(doc(db, 'students', s.id), {
-        ...s,
+    for (const { id, ...studentData } of missingStudents) {
+      studentsBatch.set(doc(db, 'students', id), {
+        ...studentData,
         behaviorScore: 100,
         createdAt: now,
         updatedAt: now,
@@ -346,12 +346,29 @@ async function runSeedSchoolWorkspace(adminUid: string, adminName: string) {
   }
 
   // If primary school workspace collections already exist, avoid overwriting immutable docs
-  const existingTeachersSnap = await getDocs(
-    query(collection(db, 'teachers'), where('scope', '==', 'school')),
-  );
+  const [
+    existingTeachersSnap,
+    existingCalSnap,
+    existingPollsSnap,
+    existingDonSnap,
+    existingRepSnap,
+    existingRoleSnap,
+  ] = await Promise.all([
+    getDocs(query(collection(db, 'teachers'), where('scope', '==', 'school'))),
+    getDocs(query(collection(db, 'calendarEvents'), where('scope', '==', 'school'))),
+    getDocs(query(collection(db, 'polls'), where('scope', '==', 'school'))),
+    getDocs(query(collection(db, 'donationCampaigns'), where('scope', '==', 'school'))),
+    getDocs(query(collection(db, 'attendanceReports'), where('scope', '==', 'school'))),
+    getDocs(query(collection(db, 'rolePermissions'), where('scope', '==', 'school'))),
+  ]);
   if (!existingTeachersSnap.empty) {
     return;
   }
+  const existingCalIds = new Set(existingCalSnap.docs.map((d) => d.id));
+  const existingPollIds = new Set(existingPollsSnap.docs.map((d) => d.id));
+  const existingDonIds = new Set(existingDonSnap.docs.map((d) => d.id));
+  const existingRepIds = new Set(existingRepSnap.docs.map((d) => d.id));
+  const existingRoleIds = new Set(existingRoleSnap.docs.map((d) => d.id));
 
   const attendanceSeed = [
     {
@@ -416,9 +433,9 @@ async function runSeedSchoolWorkspace(adminUid: string, adminName: string) {
     },
   ];
 
-  for (const a of attendanceSeed) {
-    batch.set(doc(db, 'attendance', a.id), {
-      ...a,
+  for (const { id, ...attendanceData } of attendanceSeed) {
+    batch.set(doc(db, 'attendance', id), {
+      ...attendanceData,
       createdAt: now,
       updatedAt: now,
     });
@@ -475,9 +492,9 @@ async function runSeedSchoolWorkspace(adminUid: string, adminName: string) {
     },
   ];
 
-  for (const p of periodAttendanceSeed) {
-    batch.set(doc(db, 'periodAttendance', p.id), {
-      ...p,
+  for (const { id, ...periodData } of periodAttendanceSeed) {
+    batch.set(doc(db, 'periodAttendance', id), {
+      ...periodData,
       createdAt: now,
       updatedAt: now,
     });
@@ -556,9 +573,9 @@ async function runSeedSchoolWorkspace(adminUid: string, adminName: string) {
     },
   ];
 
-  for (const g of gradesSeed) {
-    batch.set(doc(db, 'grades', g.id), {
-      ...g,
+  for (const { id, ...gradeData } of gradesSeed) {
+    batch.set(doc(db, 'grades', id), {
+      ...gradeData,
       createdAt: now,
       updatedAt: now,
     });
@@ -623,9 +640,9 @@ async function runSeedSchoolWorkspace(adminUid: string, adminName: string) {
     },
   ];
 
-  for (const t of teachersSeed) {
-    batch.set(doc(db, 'teachers', t.id), {
-      ...t,
+  for (const { id, ...teacherData } of teachersSeed) {
+    batch.set(doc(db, 'teachers', id), {
+      ...teacherData,
       createdAt: now,
       updatedAt: now,
     });
@@ -652,9 +669,9 @@ async function runSeedSchoolWorkspace(adminUid: string, adminName: string) {
     },
   ];
 
-  for (const an of announcementsSeed) {
-    batch.set(doc(db, 'announcements', an.id), {
-      ...an,
+  for (const { id, ...announcementData } of announcementsSeed) {
+    batch.set(doc(db, 'announcements', id), {
+      ...announcementData,
       createdAt: now,
     });
   }
@@ -686,28 +703,32 @@ async function runSeedSchoolWorkspace(adminUid: string, adminName: string) {
     },
   ];
 
-  for (const ac of activitiesSeed) {
-    batch.set(doc(db, 'activities', ac.id), {
-      ...ac,
+  for (const { id, ...activityData } of activitiesSeed) {
+    batch.set(doc(db, 'activities', id), {
+      ...activityData,
       createdAt: now,
       updatedAt: now,
     });
   }
 
   for (const cal of buildDefaultCalendarEvents(adminName)) {
-    batch.set(doc(db, 'calendarEvents', cal.id), {
-      ...cal.data,
-      createdAt: now,
-      updatedAt: now,
-    });
+    if (!existingCalIds.has(cal.id)) {
+      batch.set(doc(db, 'calendarEvents', cal.id), {
+        ...cal.data,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
   }
 
   for (const pl of buildDefaultPolls(adminName)) {
-    batch.set(doc(db, 'polls', pl.id), {
-      ...pl.data,
-      createdAt: now,
-      updatedAt: now,
-    });
+    if (!existingPollIds.has(pl.id)) {
+      batch.set(doc(db, 'polls', pl.id), {
+        ...pl.data,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
   }
 
   const homeworkSeed = [
@@ -733,9 +754,9 @@ async function runSeedSchoolWorkspace(adminUid: string, adminName: string) {
     },
   ];
 
-  for (const h of homeworkSeed) {
-    batch.set(doc(db, 'homework', h.id), {
-      ...h,
+  for (const { id, ...homeworkData } of homeworkSeed) {
+    batch.set(doc(db, 'homework', id), {
+      ...homeworkData,
       createdAt: now,
     });
   }
@@ -769,9 +790,9 @@ async function runSeedSchoolWorkspace(adminUid: string, adminName: string) {
     },
   ];
 
-  for (const l of librarySeed) {
-    batch.set(doc(db, 'libraryResources', l.id), {
-      ...l,
+  for (const { id, ...libraryData } of librarySeed) {
+    batch.set(doc(db, 'libraryResources', id), {
+      ...libraryData,
       createdAt: now,
       updatedAt: now,
     });
@@ -815,20 +836,22 @@ async function runSeedSchoolWorkspace(adminUid: string, adminName: string) {
     },
   ];
 
-  for (const inv of invoicesSeed) {
-    batch.set(doc(db, 'invoices', inv.id), {
-      ...inv,
+  for (const { id, ...invoiceData } of invoicesSeed) {
+    batch.set(doc(db, 'invoices', id), {
+      ...invoiceData,
       createdAt: now,
       updatedAt: now,
     });
   }
 
   for (const camp of buildDefaultDonationCampaigns(adminName)) {
-    batch.set(doc(db, 'donationCampaigns', camp.id), {
-      ...camp.data,
-      createdAt: now,
-      updatedAt: now,
-    });
+    if (!existingDonIds.has(camp.id)) {
+      batch.set(doc(db, 'donationCampaigns', camp.id), {
+        ...camp.data,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
   }
 
   const messagesSeed = [
@@ -854,9 +877,9 @@ async function runSeedSchoolWorkspace(adminUid: string, adminName: string) {
     },
   ];
 
-  for (const m of messagesSeed) {
-    batch.set(doc(db, 'messages', m.id), {
-      ...m,
+  for (const { id, ...messageData } of messagesSeed) {
+    batch.set(doc(db, 'messages', id), {
+      ...messageData,
       createdAt: now,
     });
   }
@@ -888,39 +911,43 @@ async function runSeedSchoolWorkspace(adminUid: string, adminName: string) {
     },
   ];
 
-  for (const n of notificationsSeed) {
-    batch.set(doc(db, 'notifications', n.id), {
-      ...n,
+  for (const { id, ...notificationData } of notificationsSeed) {
+    batch.set(doc(db, 'notifications', id), {
+      ...notificationData,
       createdAt: now,
     });
   }
 
-  batch.set(doc(db, 'attendanceReports', 'rep_2026_10'), {
-    monthKey: '2026-10',
-    monthLabel: 'أكتوبر 2026',
-    gradeFilter: 'جميع الصفوف الدراسية',
-    totalStudents: 5,
-    totalRecords: 105,
-    presentCount: 98,
-    absentCount: 4,
-    lateCount: 3,
-    excusedCount: 0,
-    avgAttendancePct: 96,
-    fileName: 'madarik-attendance-2026-10.pdf',
-    generatedBy: safeAdminName,
-    scope: 'school',
-    createdAt: now,
-  });
+  if (!existingRepIds.has('rep_2026_10')) {
+    batch.set(doc(db, 'attendanceReports', 'rep_2026_10'), {
+      monthKey: '2026-10',
+      monthLabel: 'أكتوبر 2026',
+      gradeFilter: 'جميع الصفوف الدراسية',
+      totalStudents: 5,
+      totalRecords: 105,
+      presentCount: 98,
+      absentCount: 4,
+      lateCount: 3,
+      excusedCount: 0,
+      avgAttendancePct: 96,
+      fileName: 'madarik-attendance-2026-10.pdf',
+      generatedBy: safeAdminName,
+      scope: 'school',
+      createdAt: now,
+    });
+  }
 
   for (const role of EDITION_ORDER) {
-    batch.set(doc(db, 'rolePermissions', role), {
-      role,
-      label: EDITION_METADATA[role].title,
-      ...DEFAULT_ROLE_PERMISSIONS[role],
-      scope: 'school',
-      updatedBy: safeAdminName,
-      updatedAt: now,
-    });
+    if (!existingRoleIds.has(role)) {
+      batch.set(doc(db, 'rolePermissions', role), {
+        role,
+        label: EDITION_METADATA[role].title,
+        ...DEFAULT_ROLE_PERMISSIONS[role],
+        scope: 'school',
+        updatedBy: safeAdminName,
+        updatedAt: now,
+      });
+    }
   }
 
   try {

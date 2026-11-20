@@ -229,8 +229,8 @@ export const PeriodCategoriesTab: React.FC<PeriodCategoriesTabProps> = ({
 
         batch.set(doc(db, 'notifications', notifId), {
           parentUid: student.parentUid,
-          title,
-          message,
+          title: title.slice(0, 140),
+          message: message.slice(0, 500),
           notifType: 'attendance',
           isRead: false,
           createdAt: serverTimestamp(),

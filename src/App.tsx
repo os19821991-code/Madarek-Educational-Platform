@@ -93,6 +93,8 @@ import { TeachersEvalView } from './components/TeachersEvalView';
 import { PermissionsAdminView } from './components/PermissionsAdminView';
 import { StudentProfileView } from './components/StudentProfileView';
 import { MobileNotificationsDrawer } from './components/MobileNotificationsDrawer';
+import { PWAInstallButton } from './components/PWAInstallButton';
+import { OfflineIndicator } from './components/OfflineIndicator';
 import type {
   Activity,
   Announcement,
@@ -960,13 +962,16 @@ function SchoolPlatform() {
           <span className="text-xs text-slate-500 hidden sm:inline whitespace-nowrap shrink-0">
             أربع نسخ مخصصة بصلاحيات مرنة قابلة للتعديل من الإدارة
           </span>
-          <button
-            type="button"
-            onClick={handleGoogleSignIn}
-            className="px-4 py-2 bg-teal-700 text-white text-xs font-medium rounded-lg hover:bg-teal-800 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
-          >
-            تسجيل الدخول
-          </button>
+          <div className="flex items-center gap-2.5 shrink-0">
+            <PWAInstallButton compact onNotify={showToast} />
+            <button
+              type="button"
+              onClick={handleGoogleSignIn}
+              className="px-4 py-2 bg-teal-700 text-white text-xs font-medium rounded-lg hover:bg-teal-800 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            >
+              تسجيل الدخول
+            </button>
+          </div>
         </header>
 
         <main className="flex-1 max-w-6xl w-full mx-auto px-6 py-12 flex items-center">
@@ -1035,6 +1040,7 @@ function SchoolPlatform() {
             </div>
           </div>
         </main>
+        <OfflineIndicator />
       </div>
     );
   }
@@ -1228,6 +1234,8 @@ function SchoolPlatform() {
                 ))}
               </div>
             )}
+
+            <PWAInstallButton onNotify={showToast} />
 
             <button
               type="button"
@@ -1545,6 +1553,8 @@ function SchoolPlatform() {
           {toastMessage}
         </div>
       )}
+
+      <OfflineIndicator />
     </div>
   );
 }

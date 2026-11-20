@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <rect width="512" height="512" rx="112" fill="#0f766e" />
+  <rect x="28" y="28" width="456" height="456" rx="92" stroke="#14b8a6" stroke-opacity="0.35" stroke-width="6" />
+  <!-- Open Smart Book / Academic Emblem -->
+  <path
+    d="M256 154C224 134 176 128 128 138C118 140 112 148 112 158V338C112 348 121 356 131 354C178 345 224 352 256 372C288 352 334 345 381 354C391 356 400 348 400 338V158C400 148 394 140 384 138C336 128 288 134 256 154Z"
+    fill="#ffffff"
+  />
+  <!-- Center Spine -->
+  <rect x="250" y="152" width="12" height="220" rx="6" fill="#0f766e" fill-opacity="0.22" />
+  <!-- Academic Lines Left/Right -->
+  <rect x="144" y="186" width="84" height="14" rx="7" fill="#0f766e" fill-opacity="0.28" />
+  <rect x="144" y="218" width="70" height="14" rx="7" fill="#0f766e" fill-opacity="0.2" />
+  <rect x="144" y="250" width="80" height="14" rx="7" fill="#0f766e" fill-opacity="0.2" />
+  <rect x="284" y="186" width="84" height="14" rx="7" fill="#0f766e" fill-opacity="0.28" />
+  <rect x="298" y="218" width="70" height="14" rx="7" fill="#0f766e" fill-opacity="0.2" />
+  <rect x="288" y="250" width="80" height="14" rx="7" fill="#0f766e" fill-opacity="0.2" />
+  <!-- Top Rising Star / Beacon Dot -->
+  <circle cx="256" cy="98" r="22" fill="#f59e0b" />
+  <circle cx="256" cy="98" r="10" fill="#ffffff" />
+  <!-- Bottom Check Accent Bar -->
+  <rect x="196" y="396" width="120" height="14" rx="7" fill="#99f6e4" />
+</svg>
